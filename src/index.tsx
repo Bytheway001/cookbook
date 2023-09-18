@@ -1,30 +1,36 @@
-
-
-
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
-import App from './App';
-import { BrowserRouter, createBrowserRouter, Route, RouterProvider, Routes } from 'react-router-dom';
-import { routes } from './routes';
-import { Navigation } from './components/Navigation';
-import { Ingredients } from './pages/ingredients/Ingredients';
-import { Container } from 'react-bootstrap';
+import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { Cocina } from './views/Cocina';
+import { TableDetail } from './pages/TableDetail';
+import { Waiter } from './pages/Waiter';
+import { Dashboard } from './views/Dashboard';
+import { Layout } from './Layout';
+import { Report } from './pages/Report';
+import { WebSocketProvider } from './websockets/Provider';
+
 
 
 const root = ReactDOM.createRoot(document.getElementById('root')!);
-const router = createBrowserRouter(routes)
-root.render(
 
+root.render(
+  <WebSocketProvider>
     <BrowserRouter>
-     
+      <Layout>
         <Routes>
-          <Route path="/" element={<Cocina />} />
-          <Route path="/ingredients" element={<Ingredients />}></Route>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/kitchen" element={<Cocina />} />
+          <Route path="/table/:id" element={<TableDetail />}></Route>
+          <Route path="/waiter" element={<Waiter />}></Route>
+          <Route path="/report" element={<Report />}></Route>
         </Routes>
-  
+      </Layout>
     </BrowserRouter>
+
+  </WebSocketProvider>
+
+
 
 );
 

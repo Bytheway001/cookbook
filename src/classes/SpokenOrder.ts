@@ -23,7 +23,7 @@ export default class SpokenOrder {
         let text = `Dictando orden numero ${this.order.id}, `
         if (this.order) {
             text+= this.order.order_items.map((product: any) => {
-                return `${product.quantity} ${product.product}`
+                return `${product.quantity} ${product.dish}`
             }).join(', ')
             text+= " Para llevar"
             return text

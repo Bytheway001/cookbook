@@ -1,34 +1,23 @@
-html,body{
-  width:100vw;
-  height:100vh;
+html, body, #root {
+  height: 100%;
 }
 
-#cocina{
+.content {
 
-  width:100vw;
-  height:100vh;
-  padding:20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: row;
-
+  flex: 20;
+  padding: 10px;
 }
 
-.current{
-  flex:3;
-  font-size: 2em;
-  font-weight: bold;
-  border:black 1px solid;
-  padding:30px;
+.topbar {
+  flex-grow: 0;
+  display: none;
 }
-.previous{
-  border:blue 1px solid;
-  flex:2;
-  height:100%;
+.blink {
+  animation: blinker 1s linear infinite;
 }
-.next{
-  height:100%;
-  border:blue 1px solid;
-  flex:2;
+
+@keyframes blinker {
+  50% {
+    opacity: 0;
+  }
 }

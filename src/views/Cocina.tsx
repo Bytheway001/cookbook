@@ -1,173 +1,117 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { Alert, Button, Card, Col, Container, ListGroup, ListGroupItem, Row, Table } from "react-bootstrap";
-import { Order } from "./Order";
-import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
-import SpokenOrder from "../classes/SpokenOrder";
-import { apiClient } from "../classes/apiClient";
-import { OrderType } from "../types/api";
+import React, { useCallback, useEffect, useState } from 'react';
+import { Badge, Button, Card, Col, Container, Row, Table } from 'react-bootstrap';
+import { useWebSocket } from 'react-use-websocket/dist/lib/use-websocket';
+import { apiClient } from '../classes/apiClient';
+import { TopBar } from '../Layout';
+import { OrderItemType, OrderType } from '../types/api';
+import { parseMessage } from '../websockets/messages';
+import { useWS } from '../websockets/Provider';
 
+const OrderSquare: React.FC<{ item: OrderItemType, table_id: number }> = ({ item, table_id }) => (
+    <div className="border border-danger mb-2 mx-2 d-flex flex-column align-items-center justify-content-center" style={{ width: 100, height: 100, position: 'relative' }}>
 
+        <p style={{ fontSize: '2em' }} className='mb-0'><strong>{item.quantity}</strong></p>
+        <p style={{ fontSize: '2em' }} className='mb-0'><strong>{item.initials}</strong></p>
 
+    </div>
+)
+export const Cocina: React.FC = () => {
+    const [connected, setConnected] = useState(false)
+    const { lastMessage, subscribe, playSound, connectionStatus } = useWS();
+    const [currentOrder, setCurrentOrder] = useState<OrderType>(null!)
+    const [pendingOrders, setPendingOrders] = useState<OrderType[]>([])
+    const completeOrder = () => {
+        apiClient.orders.complete(currentOrder.id).then(res => {
 
-export const Cocina = () => {
-    const [text, setText] = useState("")
-    const [connected, setConnected] = useState(false);
-    const [view, setView] = useState("orders")
-    const [currentOrder, setCurrentOrder] = useState<OrderType>(undefined!)
-    const talker = new SpeechSynthesisUtterance();
-    talker.pitch = 0;
-    talker.lang = 'es-AR'
-
-
-    const say = (text: string) => {
-       
-        resetTranscript()
-        talker.text = text
-        window.speechSynthesis.speak(talker)
-        SpeechRecognition.startListening({ language: 'es-BO', continuous: true })
-
-    }
-    const speakOrder = (order: any) => {
-        
-        let s = new SpokenOrder(order)
-        say(s.getOrderText() as string)
+            setCurrentOrder(res)
+            apiClient.orders.pending().then(res => {
+                setPendingOrders(res)
+            })
+        })
 
     }
+
     useEffect(() => {
-        if (connected) {
-            resetTranscript()
-            setCurrentOrder(undefined!)
-            SpeechRecognition.startListening({ language: 'es-BO', continuous: true })
-            say("Conectado")
+        console.log("Subscribing")
+        subscribe()
+    }, [subscribe])
+
+    useEffect(() => {
+        let m = parseMessage(lastMessage)
+        if (m) {
+            if (m.command == 'New Order') {
+                playSound();
+                refresh()
+            }
         }
 
-    }, [connected])
+    }, [lastMessage])
 
-    const completeOrder = () => {
-        console.log('asds')
-        apiClient.orders.complete(currentOrder.id).then(res => {
-            say('Orden completada')
-            getNextOrder()
-        })
-    }
-
-
-
-    const getNextOrder = () => {
-        apiClient.orders.next().then(res => {
-            setCurrentOrder(res)
-            speakOrder(res)
-        })
-        .catch(err=>{
-            say('No hay órdenes pendientes')
-        })
-    }
-
-    const repeatCurrentorder = () => {
-        if (currentOrder) {
-            speakOrder(currentOrder)
+    const handleOrderClick = (order: OrderType) => {
+        if (currentOrder && currentOrder.id === order.id) {
+            setCurrentOrder(null!)
         }
         else {
-            say('No hay órdenes pendientes, más pilas, pendejos')
+            setCurrentOrder(order)
         }
-    }
-    const repeatLastMessage = () => {
-        say("Verga que peo contigo chico!..." + text)
+
     }
 
-    const speakDishes = () => {
-        console.log('speking')
-
-        let items: { [key: string]: number } = {}
-        apiClient.orders.all().then((orders) => {
-            orders.forEach((order: OrderType) => {
-                order.order_items.forEach((item) => {
-                    if (items[item.product]) {
-                        items[item.product] += item.quantity
-                    }
-                    else {
-                        items[item.product] = item.quantity
-                    }
-
-                })
-            })
-            let t = ''
-            for (let key in items) {
-                t += items[key] + key
-                say(items[key] + key)
-                setText(t)
-            }
+    const refresh = useCallback(() => {
+        apiClient.orders.pending().then(res => {
+            setPendingOrders(res)
         })
+    }, [])
 
 
+    useEffect(() => {
+        refresh()
+    }, [refresh])
+    if (connected) {
+        return (
+            <>
+                <TopBar title="Comanda" action="/" />
 
-    }
+                <Container className='mt-4'>
+                    <Row>
+                        <Col xs={12} className='mt-4'>
+                            {
+                                pendingOrders.map((order, i) => (
+                                    <Card key={i} className={`mb-4 ${currentOrder?.id === order.id ? 'border border-success' : 'border border-primary'} `}>
+                                        <Card.Header onClick={() => handleOrderClick(order)} className={`${currentOrder?.id === order.id ? 'bg-success' : 'bg-primary'} text-white d-flex justify-content-between`}>
+                                            #{order.id}
+                                            {order.delivery ?
+                                                <Badge bg='warning' className='blink d-flex align-items-center'>PARA LLEVAR </Badge> : <Badge bg="secondary d-flex align-items-center"> MESA</Badge>}
+                                        </Card.Header>
+                                        <Card.Body onClick={() => handleOrderClick(order)} >
+                                            <Row>
+                                                <Col sm={9} className='d-flex flex-row'>{order.order_items.map((item) => (<OrderSquare item={item} table_id={order.table_id} />))}</Col>
+                                            </Row>
+                                        </Card.Body>
+                                        {
+                                            currentOrder?.id === order.id && (
+                                                <Card.Footer>
+                                                    <Button className="w-100" onClick={()=>completeOrder()}>SALE</Button>
+                                                </Card.Footer>
 
-
-    const commands = [
-        { command: "próxima orden", callback: () => getNextOrder() },
-        { command: "orden actual", callback: () => repeatCurrentorder() },
-        { command: 'repite', callback: () => repeatLastMessage() },
-        { command: 'pendientes', callback: () => speakDishes() },
-        { command: 'sale', callback: () => completeOrder() }
-
-    ]
-
-
-    const {
-        transcript,
-        listening,
-        resetTranscript,
-        browserSupportsSpeechRecognition
-    } = useSpeechRecognition({ commands });
-
-    if (!browserSupportsSpeechRecognition) {
-        return <span>Browser doesn't support speech recognition.</span>;
-    }
-
-
-
-    return (
-        <Container fluid className="px-0">
-            <Row>
-                <Col sm={12}>
-                    <Alert variant='info' className='p-1 px-2 d-flex flex-row justify-content-between align-items-center'>
-                        <p className='mb-0'>Escuchando: {listening ? "SI" : "NO"}</p>
-                        <p className='mb-0'>{transcript}</p>
-                        <Button variant='success' onClick={() => setConnected(true)}>Conectar</Button>
-                    </Alert>
-
-                </Col>
-                {
-                    currentOrder && (
-                        <Col sm={12}>
-                            <Card>
-                                <Card.Header className='bg-primary text-white'>Orden Actual ({`# ${currentOrder.id}`})</Card.Header>
-                                <Card.Body>
-                                    <Table size='sm'>
-                                        <thead>
-                                            <th>PRODUCTO</th>
-                                            <th>CANTIDAD</th>
-                                        </thead>
-                                        <tbody>
-                                            {currentOrder.order_items.map((item) => (
-                                                <tr style={{ fontSize: '1.3em' }}>
-                                                    <td>{item.product}</td>
-                                                    <td>{item.quantity}</td>
-                                                </tr>
-                                            ))}
-
-                                        </tbody>
-                                    </Table>
-                                </Card.Body>
-                            </Card>
+                                            )
+                                        }
+                                    </Card>
+                                ))
+                            }
                         </Col>
-                    )
-                }
+                    </Row>
+                </Container>
+            </>
+        )
+    }
+    else {
+        return (
+            <div className='d-flex flex-column align-items-center justify-content-center h-100'>
+                <Button onClick={() => setConnected(true)} size='lg' variant='success'>CONECTAR</Button>
+            </div>
 
-            </Row>
-        </Container>
-
-    );
+        )
+    }
 
 }
